@@ -34,19 +34,31 @@ meta <- Biobase::pData(gse[[1]]) |>
   dplyr::mutate("Group" = paste(Treatment, `Cell line`, sep = " ")) |>
   dplyr::mutate("Type" = stringr::str_extract(Treatment, "\\w+-resistant$")) |>
   dplyr::mutate(Type = ifelse(is.na(Type), "Sensitive", Type)) |>
-  dplyr::mutate(`Dose uM` = stringr::str_extract(Treatment, "\\d+\\.\\d+") |> as.numeric()) |>
-  dplyr::mutate(Resistance = stringr::str_extract(Treatment, "(Palbociclib|Abemaciclib|Ribociclib)")) |>
+  dplyr::mutate(
+    `Dose uM` = stringr::str_extract(
+      Treatment, "\\d+\\.\\d+"
+    ) |> as.numeric()
+  ) |>
+  dplyr::mutate(
+    Resistance = stringr::str_extract(
+      Treatment,
+      "(Palbociclib|Abemaciclib|Ribociclib)"
+    )
+  ) |>
   dplyr::mutate(Pool = stringr::str_extract(title, "\\d+$")) |>
   dplyr::select(-title)
 
 
-# ensure group variable is correctly formatted as factor with levels in the desired order
+# ensure group variable is correctly formatted
+# as factor with levels in the desired order
 meta$Group <- factor(meta$Group)
 levels(meta$Group) <- make.names(levels(meta$Group))
 
 # check consistency of sample names between counts and metadata
 assertthat::are_equal(all(colnames(counts)[-1] == meta$Sample), TRUE) |>
-  assertthat::assert_that(msg = "Sample names in counts and metadata do not match")
+  assertthat::assert_that(
+    msg = "Sample names in counts and metadata do not match"
+  )
 
 # initialize DGEList object from edgeR package with raw counts
 dge <- edgeR::DGEList(counts = counts)
@@ -71,19 +83,46 @@ rld <- DESeq2::rlog(dds, blind = FALSE)
 mat <- SummarizedExperiment::assay(rld)
 
 # PCA plots
-plot_pca(mat, meta, color_var = "Cell line", width = 6, height = 5)
-plot_pca(mat, meta, color_var = "Treatment", width = 6, height = 5)
-plot_pca(mat, meta, color_var = "Group", width = 6, height = 5)
-plot_pca(mat, meta, color_var = "Dose uM", width = 6, height = 5)
-plot_pca(mat, meta, color_var = "Resistance", width = 6, height = 5)
-plot_pca(mat, meta, color_var = "Pool", width = 6, height = 5)
+plot_pca(mat, meta, color_var = "Cell line",
+  width = 6, height = 5, normalised = TRUE)
+plot_pca(mat, meta, color_var = "Treatment",
+  width = 6, height = 5, normalised = TRUE)
+plot_pca(mat, meta, color_var = "Group",
+  width = 6, height = 5, normalised = TRUE)
+plot_pca(mat, meta, color_var = "Dose uM",
+  width = 6, height = 5, normalised = TRUE)
+plot_pca(mat, meta, color_var = "Resistance",
+  width = 6, height = 5, normalised = TRUE)
+plot_pca(mat, meta, color_var = "Pool",
+  width = 6, height = 5, normalised = TRUE)
 
 # density plots
-plot_density_counts(mat, meta, color_var = "Group", width = 6, height = 5, is_raw_counts = FALSE)
-plot_density_counts(mat, meta, color_var = "Cell line", width = 6, height = 5, is_raw_counts = FALSE)
-plot_density_counts(mat, meta, color_var = "Treatment", width = 6, height = 5, is_raw_counts = FALSE)
-plot_density_counts(mat, meta, color_var = "Dose", width = 6, height = 5, is_raw_counts = FALSE)
-plot_density_counts(mat, meta, color_var = "Resistance", width = 6, height = 5, is_raw_counts = FALSE)
+plot_density_counts(mat, meta,
+  color_var = "Group", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
+plot_density_counts(mat, meta,
+  color_var = "Cell line", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
+plot_density_counts(mat, meta,
+  color_var = "Treatment", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
+plot_density_counts(mat, meta,
+  color_var = "Dose uM", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
+plot_density_counts(mat, meta,
+  color_var = "Resistance", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
+plot_density_counts(mat, meta,
+  color_var = "Pool", width = 6, height = 5,
+  is_raw_counts = FALSE, normalised = TRUE
+)
 
-plot_ma(mat)
+
 plot_ma(dge$counts)
+plot_ma(dge$counts, norm_mat = mat,
+       file_name = "ma_norm_plots.pdf") 

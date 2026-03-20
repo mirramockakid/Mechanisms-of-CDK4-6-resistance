@@ -1,0 +1,20 @@
+{
+  "name": "Project001",
+  "image": "ghcr.io/mirramockakid/mechanisms-of-cdk4-6-resistance:latest",
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+  "containerEnv": {
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "REditorSupport.r"
+      ],
+      "settings": {
+        "r.alwaysUseActiveTerminal": true,
+        "r.bracketedPaste": true,
+        "r.plot.useHttpgd": true
+      }
+    }
+  }
+}

@@ -1,4 +1,7 @@
-plot_pca <- function(expr_mat, metadata, color_var, out_dir = "figures/pca", width = 7, height = 5) {
+plot_pca <- function(expr_mat, metadata, color_var,
+                     out_dir = "figures/pca",
+                     width = 7, height = 5,
+                     normalised = FALSE) {
   if (!is.matrix(expr_mat)) {
     stop("`expr_mat` must be a matrix (e.g., rlog assay matrix).")
   }
@@ -33,7 +36,8 @@ plot_pca <- function(expr_mat, metadata, color_var, out_dir = "figures/pca", wid
   }
 
   if (!"Sample" %in% colnames(metadata)) {
-    stop("`metadata` must contain a `Sample` column matching expression matrix sample IDs.")
+    stop("`metadata` must contain a `Sample` column",
+         " matching expression matrix sample IDs.")
   }
 
   if (!all(sample_ids %in% metadata$Sample)) {
@@ -77,7 +81,9 @@ plot_pca <- function(expr_mat, metadata, color_var, out_dir = "figures/pca", wid
     ggplot2::theme_minimal(base_size = 12) +
     ggplot2::theme(
       panel.grid.minor = ggplot2::element_blank(),
-      panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.major = ggplot2::element_line(
+        color = "grey90", linewidth = 0.3
+      ),
       plot.title = ggplot2::element_text(face = "bold"),
       legend.title = ggplot2::element_text(face = "bold"),
       axis.title = ggplot2::element_text(face = "bold")
@@ -85,15 +91,22 @@ plot_pca <- function(expr_mat, metadata, color_var, out_dir = "figures/pca", wid
 
   if (is.numeric(color_data)) {
     plot_obj <- plot_obj +
-      ggplot2::scale_color_gradientn(colors = grDevices::hcl.colors(9, "TealGrn"))
+      ggplot2::scale_color_gradientn(
+        colors = grDevices::hcl.colors(9, "TealGrn")
+      )
   } else {
     n_levels <- length(unique(as.character(color_data)))
     plot_obj <- plot_obj +
-      ggplot2::scale_color_manual(values = grDevices::hcl.colors(n_levels, "Dark 3"))
+      ggplot2::scale_color_manual(
+        values = grDevices::hcl.colors(n_levels, "Dark 3")
+      )
   }
 
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   safe_name <- gsub("[^A-Za-z0-9._-]", "_", color_var)
+  if (normalised) {
+    safe_name <- paste0(safe_name, "_norm")
+  }
   out_file <- file.path(out_dir, sprintf("%s.pdf", safe_name))
   ggplot2::ggsave(
     filename = out_file,
@@ -106,7 +119,12 @@ plot_pca <- function(expr_mat, metadata, color_var, out_dir = "figures/pca", wid
   invisible(plot_obj)
 }
 
-plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figures/density", width = 8, height = 6, is_raw_counts = NULL) {
+plot_density_counts <- function(expr_mat, metadata,
+                               color_var,
+                               out_dir = "figures/density",
+                               width = 8, height = 6,
+                               is_raw_counts = NULL,
+                               normalised = FALSE) {
   if (!is.matrix(expr_mat)) {
     stop("`expr_mat` must be a matrix.")
   }
@@ -131,7 +149,9 @@ plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figure
     stop("`height` must be a single positive number.")
   }
 
-  if (!is.null(is_raw_counts) && (!is.logical(is_raw_counts) || length(is_raw_counts) != 1)) {
+  if (!is.null(is_raw_counts) &&
+      (!is.logical(is_raw_counts) ||
+       length(is_raw_counts) != 1)) {
     stop("`is_raw_counts` must be NULL or a single TRUE/FALSE value.")
   }
 
@@ -145,7 +165,8 @@ plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figure
   }
 
   if (!"Sample" %in% colnames(metadata)) {
-    stop("`metadata` must contain a `Sample` column matching count matrix sample IDs.")
+    stop("`metadata` must contain a `Sample` column",
+         " matching count matrix sample IDs.")
   }
 
   if (!all(sample_ids %in% metadata$Sample)) {
@@ -196,7 +217,9 @@ plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figure
     ggplot2::theme_minimal(base_size = 12) +
     ggplot2::theme(
       panel.grid.minor = ggplot2::element_blank(),
-      panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+      panel.grid.major = ggplot2::element_line(
+        color = "grey90", linewidth = 0.3
+      ),
       plot.title = ggplot2::element_text(face = "bold"),
       legend.title = ggplot2::element_text(face = "bold"),
       axis.title = ggplot2::element_text(face = "bold")
@@ -204,15 +227,22 @@ plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figure
 
   if (is.numeric(color_data)) {
     plot_obj <- plot_obj +
-      ggplot2::scale_color_gradientn(colors = grDevices::hcl.colors(9, "TealGrn"))
+      ggplot2::scale_color_gradientn(
+        colors = grDevices::hcl.colors(9, "TealGrn")
+      )
   } else {
     n_levels <- length(unique(as.character(color_data)))
     plot_obj <- plot_obj +
-      ggplot2::scale_color_manual(values = grDevices::hcl.colors(n_levels, "Dark 3"))
+      ggplot2::scale_color_manual(
+        values = grDevices::hcl.colors(n_levels, "Dark 3")
+      )
   }
 
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
   safe_name <- gsub("[^A-Za-z0-9._-]", "_", color_var)
+  if (normalised) {
+    safe_name <- paste0(safe_name, "_norm")
+  }
   out_file <- file.path(out_dir, sprintf("%s.pdf", safe_name))
   ggplot2::ggsave(
     filename = out_file,
@@ -225,13 +255,32 @@ plot_density_counts <- function(expr_mat, metadata, color_var, out_dir = "figure
   invisible(plot_obj)
 }
 
-plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pdf", plots_per_page = 10, ncol = 2, width = 11, height = 14) {
+plot_ma <- function(counts_mat, norm_mat = NULL,
+                   out_dir = "figures/ma",
+                   file_name = "ma_plots.pdf",
+                   plots_per_page = 10, ncol = 2,
+                   width = 11, height = 14) {
   if (!is.matrix(counts_mat)) {
     stop("`counts_mat` must be a matrix.")
   }
 
   if (!is.numeric(counts_mat)) {
     stop("`counts_mat` must be a numeric matrix.")
+  }
+
+  if (!is.null(norm_mat)) {
+    if (!is.matrix(norm_mat)) {
+      stop("`norm_mat` must be a matrix.")
+    }
+    if (!is.numeric(norm_mat)) {
+      stop("`norm_mat` must be a numeric matrix.")
+    }
+    if (!identical(dim(counts_mat), dim(norm_mat))) {
+      stop("`counts_mat` and `norm_mat` must have the same dimensions.")
+    }
+    if (!identical(colnames(counts_mat), colnames(norm_mat))) {
+      stop("`counts_mat` and `norm_mat` must have the same column names.")
+    }
   }
 
   if (!is.numeric(width) || length(width) != 1 || width <= 0) {
@@ -246,7 +295,9 @@ plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pd
     stop("`file_name` must be a single character string.")
   }
 
-  if (!is.numeric(plots_per_page) || length(plots_per_page) != 1 || plots_per_page <= 0) {
+  if (!is.numeric(plots_per_page) ||
+      length(plots_per_page) != 1 ||
+      plots_per_page <= 0) {
     stop("`plots_per_page` must be a single positive number.")
   }
 
@@ -259,23 +310,37 @@ plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pd
     stop("`counts_mat` must have column names corresponding to sample IDs.")
   }
 
-  log_mat <- log2(counts_mat + 1)
-  ref_log <- rowMeans(log_mat, na.rm = TRUE)
+  log_counts <- log2(counts_mat + 1)
+  ref_counts <- rowMeans(log_counts, na.rm = TRUE)
+
+  if (!is.null(norm_mat)) {
+    log_norm <- norm_mat
+    ref_norm <- rowMeans(log_norm, na.rm = TRUE)
+  } else {
+    log_norm <- log_counts
+    ref_norm <- ref_counts
+  }
 
   dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+  m_limit <- 5
+
   plot_list <- vector("list", length(sample_ids))
   names(plot_list) <- sample_ids
 
   for (i in seq_along(sample_ids)) {
     sample_name <- sample_ids[i]
-    sample_log <- log_mat[, i]
 
     plot_df <- data.frame(
-      A = 0.5 * (sample_log + ref_log),
-      M = sample_log - ref_log,
+      A = 0.5 * (log_counts[, i] + ref_counts),
+      M = log_norm[, i] - ref_norm,
       stringsAsFactors = FALSE
     )
-    plot_df <- plot_df[is.finite(plot_df$A) & is.finite(plot_df$M), , drop = FALSE]
+    plot_df <- plot_df[
+      is.finite(plot_df$A) & is.finite(plot_df$M), ,
+      drop = FALSE
+    ]
+    plot_df$M <- pmax(pmin(plot_df$M, m_limit), -m_limit)
 
     plot_obj <- ggplot2::ggplot(
       plot_df,
@@ -283,22 +348,29 @@ plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pd
     ) +
       ggplot2::geom_hline(yintercept = 0, linewidth = 0.4, color = "grey85") +
       ggplot2::geom_point(size = 1.1, alpha = 0.55, color = "#0072B2") +
+      ggplot2::geom_smooth(
+        method = "loess", color = "red",
+        linewidth = 0.6, se = FALSE
+      ) +
       ggplot2::labs(
-        title = "MA Plot",
-        subtitle = sprintf("Sample: %s", sample_name),
-        x = "A: mean log2 expression",
-        y = "M: log2 fold-change vs average sample"
+        title = sample_name,
+        x = "A",
+        y = "M"
       ) +
       ggplot2::theme_minimal(base_size = 12) +
       ggplot2::theme(
         panel.grid.minor = ggplot2::element_blank(),
-        panel.grid.major = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+        panel.grid.major = ggplot2::element_line(
+          color = "grey90", linewidth = 0.3
+        ),
         plot.title = ggplot2::element_text(face = "bold"),
         axis.title = ggplot2::element_text(face = "bold")
-      )
+      ) +
+      ggplot2::coord_cartesian(ylim = c(-m_limit, m_limit))
 
     plot_list[[i]] <- plot_obj
   }
+
 
   plots_per_page <- as.integer(plots_per_page)
   ncol <- as.integer(ncol)
@@ -317,7 +389,9 @@ plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pd
     page_plots <- plot_list[start_idx:end_idx]
 
     grid::grid.newpage()
-    grid::pushViewport(grid::viewport(layout = grid::grid.layout(nrow = nrow, ncol = ncol)))
+    grid::pushViewport(grid::viewport(
+      layout = grid::grid.layout(nrow = nrow, ncol = ncol)
+    ))
 
     for (j in seq_along(page_plots)) {
       row_idx <- ((j - 1) %/% ncol) + 1
@@ -330,4 +404,105 @@ plot_ma <- function(counts_mat, out_dir = "figures/ma", file_name = "ma_plots.pd
   }
 
   invisible(plot_list)
+}
+
+plot_volcano <- function(df,
+                         out_dir = "figures/volcano",
+                         file_name = "volcano.pdf",
+                         title = "Volcano Plot",
+                         width = 7, height = 6) {
+  required <- c("Gene", "logFC", "P.Value", "adj.P.Val")
+  missing <- setdiff(required, colnames(df))
+  if (length(missing) > 0) {
+    stop(
+      "Missing columns: ",
+      paste(missing, collapse = ", ")
+    )
+  }
+
+  if (!is.data.frame(df)) {
+    stop("`df` must be a data.frame.")
+  }
+
+  if (!is.numeric(width) ||
+      length(width) != 1 || width <= 0) {
+    stop("`width` must be a single positive number.")
+  }
+
+  if (!is.numeric(height) ||
+      length(height) != 1 || height <= 0) {
+    stop("`height` must be a single positive number.")
+  }
+
+  if (!is.character(file_name) ||
+      length(file_name) != 1) {
+    stop("`file_name` must be a single character string.")
+  }
+
+  df$neg_log10_p <- -log10(df$P.Value)
+
+  adj_cutoff <- max(
+    df$P.Value[df$adj.P.Val < 0.05],
+    na.rm = TRUE
+  )
+  hline_y <- -log10(adj_cutoff)
+
+  plot_obj <- ggplot2::ggplot(
+    df,
+    ggplot2::aes(x = logFC, y = neg_log10_p)
+  ) +
+    ggplot2::geom_point(
+      size = 1.2, alpha = 0.5, color = "grey40"
+    ) +
+    ggplot2::geom_hline(
+      yintercept = hline_y,
+      linewidth = 0.5,
+      linetype = "dashed",
+      color = "red"
+    ) +
+    ggrepel::geom_text_repel(
+      data = utils::head(
+        df[order(-df$neg_log10_p), ], 20
+      ),
+      ggplot2::aes(label = Gene),
+      size = 3, max.overlaps = 20
+    ) +
+    ggplot2::labs(
+      title = title,
+      x = "log2 Fold Change",
+      y = "-log10(P-value)"
+    ) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      panel.grid.minor = ggplot2::element_blank(),
+      panel.grid.major = ggplot2::element_line(
+        color = "grey90", linewidth = 0.3
+      ),
+      plot.title = ggplot2::element_text(
+        face = "bold"
+      ),
+      axis.title = ggplot2::element_text(
+        face = "bold"
+      )
+    )
+
+  dir.create(
+    out_dir, showWarnings = FALSE, recursive = TRUE
+  )
+  safe_file <- gsub(
+    "[^A-Za-z0-9._-]", "_", file_name
+  )
+  if (!grepl("\\.pdf$", safe_file, ignore.case = TRUE)) {
+    safe_file <- paste0(safe_file, ".pdf")
+  }
+  out_file <- file.path(out_dir, safe_file)
+  ggplot2::ggsave(
+    filename = out_file,
+    plot = plot_obj,
+    device = "pdf",
+    width = width,
+    height = height
+  )
+
+  invisible(plot_obj)
 }
