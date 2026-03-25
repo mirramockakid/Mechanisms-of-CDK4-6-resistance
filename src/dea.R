@@ -48,3 +48,7 @@ lapply(names(results_list), function(contrast_name) {
 
 })
 
+lapply(names(results_list), function(contrast_name) {
+  plot_heatmap(expr_mat = v$E, metadata = meta, results = results_list[[contrast_name]], gene_names = v$genes$gene_id, file_name = paste0(contrast_name, "_heatmap.pdf"), annotation = c("Resistance", "Dose uM", "Cell line"))
+})
+

@@ -506,3 +506,109 @@ plot_volcano <- function(df,
 
   invisible(plot_obj)
 }
+
+plot_heatmap <- function(expr_mat, metadata, results,
+                         out_dir = "figures/heatmap",
+                         file_name = "heatmap.pdf",
+                         pval_threshold = 0.05,
+                         max_genes = 50,
+                         annotation = NULL,
+                         gene_names = NULL,
+                         width = 10, height = 8) {
+  if (!is.matrix(expr_mat) || !is.numeric(expr_mat))
+    stop("`expr_mat` must be a numeric matrix.")
+  if (!is.data.frame(metadata))
+    stop("`metadata` must be a data.frame.")
+  if (!is.data.frame(results))
+    stop("`results` must be a data.frame.")
+
+  required_cols <- c("Gene", "adj.P.Val", "logFC")
+  missing_cols <- setdiff(required_cols, colnames(results))
+  if (length(missing_cols) > 0)
+    stop("Missing columns in `results`: ", paste(missing_cols, collapse = ", "))
+
+  if (!"Sample" %in% colnames(metadata))
+    stop("`metadata` must contain a `Sample` column.")
+
+  if (!is.null(annotation)) {
+    bad <- setdiff(annotation, colnames(metadata))
+    if (length(bad) > 0)
+      stop("Annotation column(s) not found in metadata: ", paste(bad, collapse = ", "))
+  }
+
+  if (!is.null(gene_names)) {
+    if (length(gene_names) != nrow(expr_mat))
+      stop("`gene_names` must have the same length as the number of rows in `expr_mat`.")
+    rownames(expr_mat) <- gene_names
+  }
+
+  # Select significant genes
+  sig <- results[!is.na(results$adj.P.Val) & results$adj.P.Val < pval_threshold, ]
+  if (nrow(sig) == 0) {
+    message("No significant genes at adj.P.Val < ", pval_threshold, "; skipping heatmap.")
+    return(invisible(NULL))
+  }
+  if (nrow(sig) > max_genes)
+    sig <- sig[order(sig$adj.P.Val), ][seq_len(max_genes), ]
+
+  genes <- sig$Gene
+  mat <- expr_mat[rownames(expr_mat) %in% genes, , drop = FALSE]
+
+  # Row-wise z-score
+  mat_z <- t(scale(t(mat)))
+
+  # Column annotation
+  col_ann <- NULL
+  if (!is.null(annotation)) {
+    ann_df <- metadata[match(colnames(mat_z), metadata$Sample), annotation, drop = FALSE]
+    rownames(ann_df) <- colnames(mat_z)
+
+    col_list <- stats::setNames(lapply(annotation, function(v) {
+      vals <- ann_df[[v]]
+      if (is.numeric(vals)) {
+        circlize::colorRamp2(range(vals, na.rm = TRUE), c("white", "#08306B"))
+      } else {
+        lvls <- unique(na.omit(as.character(vals)))
+        stats::setNames(grDevices::hcl.colors(length(lvls), "Dark 3"), lvls)
+      }
+    }), annotation)
+
+    ha_data <- stats::setNames(lapply(annotation, function(v) {
+      vals <- ann_df[[v]]
+      if (is.numeric(vals)) vals else as.character(vals)
+    }), annotation)
+
+    col_ann <- do.call(
+      ComplexHeatmap::HeatmapAnnotation,
+      c(ha_data, list(col = col_list, annotation_name_side = "left"))
+    )
+  }
+
+  lim <- max(abs(mat_z), na.rm = TRUE)
+  col_fun <- circlize::colorRamp2(c(-lim, 0, lim), c("#2166AC", "white", "#B2182B"))
+
+  ht <- ComplexHeatmap::Heatmap(
+    mat_z,
+    name = "Z-score",
+    col = col_fun,
+    top_annotation = col_ann,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    show_row_names = TRUE,
+    show_column_names = TRUE,
+    row_names_gp = grid::gpar(fontsize = 8),
+    column_names_gp = grid::gpar(fontsize = 8)
+  )
+
+  dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+  safe_file <- gsub("[^A-Za-z0-9._-]", "_", file_name)
+  if (!grepl("\\.pdf$", safe_file, ignore.case = TRUE))
+    safe_file <- paste0(safe_file, ".pdf")
+  out_file <- file.path(out_dir, safe_file)
+
+  grDevices::pdf(out_file, width = width, height = height)
+  on.exit(grDevices::dev.off(), add = TRUE)
+  ComplexHeatmap::draw(ht)
+
+  invisible(ht)
+}
