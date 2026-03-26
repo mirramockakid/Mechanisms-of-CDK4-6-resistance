@@ -612,3 +612,355 @@ plot_heatmap <- function(expr_mat, metadata, results,
 
   invisible(ht)
 }
+
+plot_scatter <- function(res1, res2,
+                         name1, name2,
+                         out_dir = "figures/scatter",
+                         file_name = "scatter.pdf",
+                         label_top_n = 10,
+                         width = 7, height = 6) {
+  required_cols <- c("Gene", "logFC", "adj.P.Val")
+
+  missing1 <- setdiff(required_cols, colnames(res1))
+  if (length(missing1) > 0)
+    stop("Missing columns in `res1`: ", paste(missing1, collapse = ", "))
+
+  missing2 <- setdiff(required_cols, colnames(res2))
+  if (length(missing2) > 0)
+    stop("Missing columns in `res2`: ", paste(missing2, collapse = ", "))
+
+  if (!is.character(name1) || length(name1) != 1)
+    stop("`name1` must be a single character string.")
+
+  if (!is.character(name2) || length(name2) != 1)
+    stop("`name2` must be a single character string.")
+
+  if (!is.numeric(width) || length(width) != 1 || width <= 0)
+    stop("`width` must be a single positive number.")
+
+  if (!is.numeric(height) || length(height) != 1 || height <= 0)
+    stop("`height` must be a single positive number.")
+
+  if (!is.numeric(label_top_n) || length(label_top_n) != 1 || label_top_n < 0)
+    stop("`label_top_n` must be a single non-negative number.")
+
+  merged <- merge(
+    res1[, c("Gene", "logFC", "adj.P.Val")],
+    res2[, c("Gene", "logFC", "adj.P.Val")],
+    by = "Gene",
+    suffixes = c(".c1", ".c2")
+  )
+
+  sig1 <- !is.na(merged$adj.P.Val.c1) & merged$adj.P.Val.c1 < 0.05
+  sig2 <- !is.na(merged$adj.P.Val.c2) & merged$adj.P.Val.c2 < 0.05
+
+  merged$significance <- dplyr::case_when(
+    sig1 & sig2  ~ "Both",
+    sig1 & !sig2 ~ "Contrast 1 only",
+    !sig1 & sig2 ~ "Contrast 2 only",
+    TRUE         ~ "Not significant"
+  )
+  merged$significance <- factor(
+    merged$significance,
+    levels = c("Both", "Contrast 1 only", "Contrast 2 only", "Not significant")
+  )
+
+  # Alpha scaled to the mean absolute logFC across the two contrasts
+  merged$mean_abs_logFC <- (abs(merged$logFC.c1) + abs(merged$logFC.c2)) / 2
+  max_abs <- max(merged$mean_abs_logFC, na.rm = TRUE)
+  merged$pt_alpha <- 0.1 + 0.9 * (merged$mean_abs_logFC / max_abs)
+
+  # Label top/bottom n genes on each axis (up to 4 * label_top_n unique genes)
+  n <- as.integer(label_top_n)
+  label_genes <- unique(c(
+    utils::head(merged$Gene[order(-merged$logFC.c1)], n),  # top x
+    utils::head(merged$Gene[order( merged$logFC.c1)], n),  # bottom x
+    utils::head(merged$Gene[order(-merged$logFC.c2)], n),  # top y
+    utils::head(merged$Gene[order( merged$logFC.c2)], n)   # bottom y
+  ))
+  label_df <- merged[merged$Gene %in% label_genes, ]
+
+  colour_map <- c(
+    "Both"             = "red",
+    "Contrast 1 only"  = "green",
+    "Contrast 2 only"  = "blue",
+    "Not significant"  = "grey70"
+  )
+
+  plot_obj <- ggplot2::ggplot(
+    merged,
+    ggplot2::aes(x = logFC.c1, y = logFC.c2, colour = significance)
+  ) +
+    ggplot2::geom_point(size = 1.2, alpha = merged$pt_alpha) +
+    ggplot2::geom_smooth(
+      method      = "lm",
+      formula     = y ~ x,
+      colour      = "black",
+      linewidth   = 0.7,
+      linetype    = "dotted",
+      se          = FALSE,
+      inherit.aes = FALSE,
+      ggplot2::aes(x = logFC.c1, y = logFC.c2)
+    ) +
+    ggplot2::scale_colour_manual(
+      values = colour_map,
+      name = "Significance (adj.P.Val < 0.05)"
+    ) +
+    ggplot2::labs(
+      x = sprintf("logFC (%s)", name1),
+      y = sprintf("logFC (%s)", name2)
+    ) +
+    ggplot2::theme_minimal(base_size = 12) +
+    ggplot2::theme(
+      panel.grid.minor  = ggplot2::element_blank(),
+      panel.grid.major  = ggplot2::element_line(color = "grey90", linewidth = 0.3),
+      plot.title        = ggplot2::element_text(face = "bold"),
+      legend.title      = ggplot2::element_text(face = "bold"),
+      axis.title        = ggplot2::element_text(face = "bold")
+    )
+
+  if (nrow(label_df) > 0) {
+    plot_obj <- plot_obj +
+      ggrepel::geom_text_repel(
+        data          = label_df,
+        ggplot2::aes(label = Gene),
+        colour        = "black",
+        size          = 3,
+        max.overlaps  = 20,
+        show.legend   = FALSE
+      )
+  }
+
+  dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+  safe_file <- gsub("[^A-Za-z0-9._-]", "_", file_name)
+  if (!grepl("\\.pdf$", safe_file, ignore.case = TRUE))
+    safe_file <- paste0(safe_file, ".pdf")
+  out_file <- file.path(out_dir, safe_file)
+  ggplot2::ggsave(
+    filename = out_file,
+    plot     = plot_obj,
+    device   = "pdf",
+    width    = width,
+    height   = height
+  )
+
+  invisible(plot_obj)
+}
+
+# ---------------------------------------------------------------------------
+# plot_gsea
+#
+# Produces a classic three-panel GSEA running-enrichment-score plot for one
+# or more pathways.  Each pathway is rendered on its own page of the output
+# PDF.
+#
+# Arguments:
+#   stats         Named, sorted (decreasing) numeric rank-metric vector.
+#   pathways      Named list of character vectors (gene sets), OR a single
+#                 character vector for one pathway.
+#   pathway_names Character vector of names to plot.  When NULL (default),
+#                 all entries in `pathways` are plotted.
+#   out_dir       Output directory (created if absent).
+#   file_name     Output file name (must end in .pdf; extension added if
+#                 missing).
+#   width, height Page dimensions in inches.
+# ---------------------------------------------------------------------------
+plot_gsea <- function(stats,
+                      pathways,
+                      pathway_names = NULL,
+                      out_dir       = "figures/gsea",
+                      width         = 7,
+                      height        = 7) {
+
+  # ---- input validation ---------------------------------------------------
+  if (!is.numeric(stats) || is.null(names(stats)))
+    stop("`stats` must be a named numeric vector.")
+
+  if (is.character(pathways))
+    pathways <- list(pathway = pathways)
+
+  if (!is.list(pathways) || length(pathways) == 0)
+    stop("`pathways` must be a non-empty named list of character vectors.")
+
+  if (is.null(names(pathways)))
+    names(pathways) <- paste0("pathway_", seq_along(pathways))
+
+  if (!is.null(pathway_names)) {
+    missing_pw <- setdiff(pathway_names, names(pathways))
+    if (length(missing_pw) > 0)
+      stop("Pathway(s) not found in `pathways`: ",
+           paste(missing_pw, collapse = ", "))
+    pathways <- pathways[pathway_names]
+  }
+
+  if (!is.numeric(width)  || length(width)  != 1 || width  <= 0)
+    stop("`width` must be a single positive number.")
+  if (!is.numeric(height) || length(height) != 1 || height <= 0)
+    stop("`height` must be a single positive number.")
+
+  # ---- helpers -------------------------------------------------------------
+
+  # Compute running enrichment score using the classical weighted KS statistic
+  # (abs(stat)-weighted hits, uniform misses).
+  .running_es <- function(stats, gene_set) {
+    N     <- length(stats)
+    in_set <- names(stats) %in% gene_set
+    k      <- sum(in_set)
+
+    if (k == 0L || k == N)
+      return(rep(0, N))
+
+    stat_sum <- sum(abs(stats[in_set]))
+    if (stat_sum == 0) stat_sum <- 1   # guard against all-zero stats
+
+    step_hit  <-  abs(stats) / stat_sum   # added when gene is in set
+    step_miss <- -1 / (N - k)             # subtracted when gene is not in set
+
+    increments <- ifelse(in_set, step_hit, step_miss)
+    cumsum(increments)
+  }
+
+  # Build the three-panel ggplot for one pathway
+  .one_pathway_plot <- function(pathway_name, gene_set, stats) {
+    N      <- length(stats)
+    in_set <- names(stats) %in% gene_set
+    k      <- sum(in_set)
+
+    running <- .running_es(stats, gene_set)
+    es      <- running[which.max(abs(running))]
+    es_pos  <- which.max(abs(running))
+
+    # Enrichment score sign determines colour
+    es_col <- if (es >= 0) "#B2182B" else "#2166AC"
+
+    # --- Panel 1: running enrichment score ----------------------------------
+    es_df <- data.frame(x = seq_len(N), es = running)
+
+    p_es <- ggplot2::ggplot(es_df, ggplot2::aes(x = x, y = es)) +
+      ggplot2::geom_hline(yintercept = 0, linewidth = 0.4, colour = "grey70") +
+      ggplot2::geom_line(colour = es_col, linewidth = 0.9) +
+      ggplot2::geom_vline(
+        xintercept = es_pos,
+        linewidth  = 0.5,
+        linetype   = "dashed",
+        colour     = "grey40"
+      ) +
+      ggplot2::annotate(
+        "text",
+        x      = es_pos,
+        y      = es,
+        label  = sprintf("ES = %.3f", es),
+        hjust  = if (es_pos > N / 2) 1.1 else -0.1,
+        vjust  = if (es >= 0) 1.5 else -0.5,
+        size   = 3.5,
+        colour = es_col
+      ) +
+      ggplot2::labs(
+        title = pathway_name,
+        x     = NULL,
+        y     = "Enrichment Score"
+      ) +
+      ggplot2::scale_x_continuous(
+        limits = c(1, N),
+        expand = ggplot2::expansion(mult = 0.01)
+      ) +
+      ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(
+        panel.grid.minor  = ggplot2::element_blank(),
+        panel.grid.major  = ggplot2::element_line(colour = "grey90", linewidth = 0.3),
+        plot.title        = ggplot2::element_text(face = "bold", size = 11),
+        axis.title.y      = ggplot2::element_text(face = "bold"),
+        axis.text.x       = ggplot2::element_blank(),
+        axis.ticks.x      = ggplot2::element_blank()
+      )
+
+    # --- Panel 2: gene hit rug ----------------------------------------------
+    # geom_segment is used so that each mark renders at least 1px wide
+    # regardless of how many genes are in the rank list (geom_tile with
+    # width = 1 data-unit becomes sub-pixel for large N and disappears).
+    hit_pos <- which(in_set)
+    rug_df  <- data.frame(x = hit_pos)
+
+    p_rug <- ggplot2::ggplot(rug_df, ggplot2::aes(x = x)) +
+      ggplot2::geom_segment(
+        ggplot2::aes(xend = x, y = 0, yend = 1),
+        colour    = "black",
+        linewidth = 0.3
+      ) +
+      ggplot2::scale_x_continuous(
+        limits = c(1, N),
+        expand = ggplot2::expansion(mult = 0.01)
+      ) +
+      ggplot2::scale_y_continuous(expand = c(0, 0)) +
+      ggplot2::labs(
+        x = NULL,
+        y = sprintf("Hits\n(n = %d)", k)
+      ) +
+      ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(
+        panel.grid        = ggplot2::element_blank(),
+        axis.text         = ggplot2::element_blank(),
+        axis.ticks        = ggplot2::element_blank(),
+        axis.title.y      = ggplot2::element_text(face = "bold", size = 9)
+      )
+
+    # --- Panel 3: rank metric bar -------------------------------------------
+    stat_df <- data.frame(x = seq_len(N), stat = stats)
+
+    p_stat <- ggplot2::ggplot(stat_df, ggplot2::aes(x = x, y = stat)) +
+      ggplot2::geom_col(
+        ggplot2::aes(fill = stat > 0),
+        width = 1,
+        show.legend = FALSE
+      ) +
+      ggplot2::scale_fill_manual(values = c("TRUE" = "#B2182B", "FALSE" = "#2166AC")) +
+      ggplot2::scale_x_continuous(
+        limits = c(1, N),
+        expand = ggplot2::expansion(mult = 0.01)
+      ) +
+      ggplot2::labs(
+        x = "Gene rank",
+        y = "Rank metric"
+      ) +
+      ggplot2::theme_minimal(base_size = 11) +
+      ggplot2::theme(
+        panel.grid.minor   = ggplot2::element_blank(),
+        panel.grid.major.x = ggplot2::element_blank(),
+        panel.grid.major.y = ggplot2::element_line(colour = "grey90", linewidth = 0.3),
+        axis.title         = ggplot2::element_text(face = "bold"),
+        axis.title.y       = ggplot2::element_text(face = "bold", size = 9)
+      )
+
+    # --- Compose with cowplot (align = "v", axis = "lr") -------------------
+    # cowplot equalises the widths of left/right axis regions across all three
+    # panels so the inner drawing areas are perfectly x-aligned.
+    cowplot::plot_grid(
+      p_es, p_rug, p_stat,
+      ncol        = 1,
+      align       = "v",
+      axis        = "lr",
+      rel_heights = c(0.55, 0.15, 0.30)
+    )
+  }
+
+  # ---- output --------------------------------------------------------------
+  dir.create(out_dir, showWarnings = FALSE, recursive = TRUE)
+
+  plot_list <- lapply(names(pathways), function(pw_name) {
+    p         <- .one_pathway_plot(pw_name, pathways[[pw_name]], stats)
+    safe_name <- gsub("[^A-Za-z0-9._-]", "_", pw_name)
+    out_file  <- file.path(out_dir, paste0(safe_name, ".png"))
+    ggplot2::ggsave(
+      filename = out_file,
+      plot     = p,
+      device   = "png",
+      width    = width,
+      height   = height,
+      dpi      = 150
+    )
+    p
+  })
+  names(plot_list) <- names(pathways)
+
+  invisible(plot_list)
+}

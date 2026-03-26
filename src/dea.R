@@ -52,3 +52,8 @@ lapply(names(results_list), function(contrast_name) {
   plot_heatmap(expr_mat = v$E, metadata = meta, results = results_list[[contrast_name]], gene_names = v$genes$gene_id, file_name = paste0(contrast_name, "_heatmap.pdf"), annotation = c("Resistance", "Dose uM", "Cell line"))
 })
 
+
+# congruence between contrasts
+plot_scatter(res1 = results_list[["MCF7 Palbociclib 4.8"]], res2 = results_list[["MCF7 Abemaciclib 1.5"]], name1 = "MCF7 Palbociclib 4.8", name2 = "MCF7 Abemaciclib 1.5", label_top_n = 25, file_name = "MCF7_Palbociclib_4.8_vs_Abemaciclib_1.5_scatter.pdf")
+
+plot_scatter(res1 = results_list[["MCF7 Palbociclib 4.8"]], res2 = results_list[["T47D Palbociclib 4.8"]], name1 = "MCF7 Palbociclib 4.8", name2 = "T47D Palbociclib 4.8", label_top_n = 25, file_name = "MCF7_Palbociclib_4.8_vs_T47D_Palbociclib_4.8_scatter.pdf")

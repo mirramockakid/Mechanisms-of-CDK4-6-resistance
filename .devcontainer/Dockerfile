@@ -22,7 +22,12 @@ RUN R -e "\
     BiocManager::install(c( \
         'limma', 'dplyr', 'tidyr', \
         'ggplot2', 'GEOquery', 'Rcpp', \
-        'edgeR', 'assertthat', 'DESeq2' \
+        'edgeR', 'assertthat', 'DESeq2', \
+        'fgsea', 'msigdbr', \
+        'Biobase', 'SummarizedExperiment', \
+        'ComplexHeatmap', 'circlize', \
+        'ggrepel', 'patchwork', \
+        'purrr', 'readr', 'stringr' \
     ))"
 
 # create dev user

@@ -70,7 +70,7 @@ dge <- dge[keep, , keep.lib.sizes = FALSE]
 # adds normalization factors to the DGEList object using the TMM method
 dge <- edgeR::calcNormFactors(dge, method = "TMM")
 
-# rlog transformation of counts for PCA and visualization
+# rlog transformation of counts for PCA and visualization purposes using DESeq2 package
 dds <- DESeq2::DESeqDataSetFromMatrix(
   countData = dge$counts,
   colData   = meta,
@@ -78,50 +78,43 @@ dds <- DESeq2::DESeqDataSetFromMatrix(
 )
 
 dds <- DESeq2::estimateSizeFactors(dds)
-
 rld <- DESeq2::rlog(dds, blind = FALSE)
 mat <- SummarizedExperiment::assay(rld)
 
 # PCA plots
-plot_pca(mat, meta, color_var = "Cell line",
-  width = 6, height = 5, normalised = TRUE)
-plot_pca(mat, meta, color_var = "Treatment",
-  width = 6, height = 5, normalised = TRUE)
-plot_pca(mat, meta, color_var = "Group",
-  width = 6, height = 5, normalised = TRUE)
-plot_pca(mat, meta, color_var = "Dose uM",
-  width = 6, height = 5, normalised = TRUE)
-plot_pca(mat, meta, color_var = "Resistance",
-  width = 6, height = 5, normalised = TRUE)
-plot_pca(mat, meta, color_var = "Pool",
-  width = 6, height = 5, normalised = TRUE)
+annot <- c("Cell line", "Treatment", "Group", "Dose uM", "Resistance", "Pool")
 
-# density plots
-plot_density_counts(mat, meta,
-  color_var = "Group", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
-)
-plot_density_counts(mat, meta,
-  color_var = "Cell line", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
-)
-plot_density_counts(mat, meta,
-  color_var = "Treatment", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
-)
-plot_density_counts(mat, meta,
-  color_var = "Dose uM", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
-)
-plot_density_counts(mat, meta,
-  color_var = "Resistance", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
-)
-plot_density_counts(mat, meta,
-  color_var = "Pool", width = 6, height = 5,
-  is_raw_counts = FALSE, normalised = TRUE
+# -- PCA plots
+# normalised
+purrr::walk(
+  annot,
+  \(cv) plot_pca(mat, meta, color_var = cv, width = 6, height = 5, normalised = TRUE)
 )
 
+# raw
+purrr::walk(
+  annot,
+  \(cv) plot_pca(dge$counts, meta, color_var = cv, width = 6, height = 5, normalised = FALSE)
+)
+
+# -- Density plots
+# normalised
+purrr::walk(
+  annot,
+  \(cv) plot_density_counts(mat, meta,
+    color_var = cv, width = 6, height = 5,
+    is_raw_counts = FALSE, normalised = TRUE
+  )
+)
+
+# raw
+purrr::walk(
+  annot,
+  \(cv) plot_density_counts(dge$counts, meta,
+    color_var = cv, width = 6, height = 5,
+    is_raw_counts = TRUE, normalised = FALSE
+  )
+)
 
 plot_ma(dge$counts)
 plot_ma(dge$counts, norm_mat = mat,
